@@ -701,7 +701,7 @@ void *qemu_alloc_stack(size_t *sz)
 #ifdef _SC_THREAD_STACK_MIN
     /* avoid stacks smaller than _SC_THREAD_STACK_MIN */
     long min_stack_sz = sysconf(_SC_THREAD_STACK_MIN);
-    *sz = MAX(MAX(min_stack_sz, 0), *sz);
+    *sz = MIN(MAX(min_stack_sz, 0), *sz);
 #endif
     /* adjust stack size to a multiple of the page size */
     *sz = ROUND_UP(*sz, pagesz);
@@ -717,6 +717,10 @@ void *qemu_alloc_stack(size_t *sz)
      * at memory that was not allocated with MAP_STACK.
      */
     flags |= MAP_STACK;
+#endif
+
+#if defined(__linux__)
+    flags |= MAP_GROWSDOWN;
 #endif
 
     ptr = mmap(NULL, *sz, PROT_READ | PROT_WRITE, flags, -1, 0);
@@ -735,6 +739,7 @@ void *qemu_alloc_stack(size_t *sz)
     /* stack grows down */
     guardpage = ptr;
 #endif
+
     if (mprotect(guardpage, pagesz, PROT_NONE) != 0) {
         perror("failed to set up stack guard page");
         abort();
