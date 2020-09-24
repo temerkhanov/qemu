@@ -55,33 +55,37 @@ int local_open_nofollow(FsContext *fs_ctx, const char *path, int flags,
 {
     LocalData *data = fs_ctx->private;
     int fd = data->mountfd;
+    char *s_path = g_strdup(path);
+    char *head = s_path;
 
     while (*path && fd != -1) {
         const char *c;
         int next_fd;
-        char *head;
 
         /* Only relative paths without consecutive slashes */
         assert(*path != '/');
 
-        head = g_strdup(path);
         c = qemu_strchrnul(path, '/');
         if (*c) {
             /* Intermediate path element */
             head[c - path] = 0;
-            path = c + 1;
             next_fd = openat_dir(fd, head);
+            head += c - path + 1;
+            path = c + 1;
+ 
         } else {
             /* Rightmost path element */
             next_fd = openat_file(fd, head, flags, mode);
+            head += c - path;
             path = c;
         }
-        g_free(head);
+
         if (fd != data->mountfd) {
             close_preserve_errno(fd);
         }
         fd = next_fd;
     }
+    g_free(s_path);
 
     assert(fd != data->mountfd);
     return fd;
